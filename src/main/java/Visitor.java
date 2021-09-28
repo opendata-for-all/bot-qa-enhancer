@@ -2,15 +2,18 @@ import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.Modifier;
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.body.VariableDeclarator;
+import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.expr.VariableDeclarationExpr;
 import com.github.javaparser.ast.stmt.ExpressionStmt;
+import com.github.javaparser.ast.stmt.IfStmt;
 import com.github.javaparser.ast.stmt.Statement;
 import com.github.javaparser.ast.visitor.ModifierVisitor;
 import fr.inria.atlanmod.commons.log.Log;
@@ -19,6 +22,8 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collection;
+import java.util.List;
 import java.util.Properties;
 
 import static java.util.Objects.isNull;
@@ -55,7 +60,6 @@ public class Visitor {
     private static String CHATBOT_NAME;
     private static String CHATBOT_FILE_PATH;
 
-
     private static String SET_MODEL_METHOD;
     private static String PROCESS_QA_TEXT_METHOD;
     private static String PROCESS_QA_TABLE_METHOD;
@@ -77,38 +81,39 @@ public class Visitor {
 
     private static void setVariables(Properties properties) {
 
-        QA_TYPE = properties.getProperty("QA_TYPE");
+        QA_TYPE = properties.getProperty("QA_TYPE", "table");
 
-        QA_MODEL_NAME_PARAMETER_TYPE = properties.getProperty("QA_MODEL_NAME_PARAMETER_TYPE");
-        SET_MODEL_ENDPOINT_PARAMETER_TYPE = properties.getProperty("SET_MODEL_ENDPOINT_PARAMETER_TYPE");
-        TRANSFORMER_ENDPOINT_PARAMETER_TYPE = properties.getProperty("TRANSFORMER_ENDPOINT_PARAMETER_TYPE");
-        URL_PARAMETER_TYPE = properties.getProperty("URL_PARAMETER_TYPE");
-        QUESTION_PARAMETER_TYPE = properties.getProperty("QUESTION_PARAMETER_TYPE");
-        DEFAULT_FALLBACK_CORPUS_FILE_PARAMETER_TYPE = properties.getProperty("DEFAULT_FALLBACK_CORPUS_FILE_PARAMETER_TYPE");
-        DEFAULT_FALLBACK_CORPUS_PARAMETER_TYPE = properties.getProperty("DEFAULT_FALLBACK_CORPUS_PARAMETER_TYPE");
+        QA_MODEL_NAME_PARAMETER_TYPE = properties.getProperty("QA_MODEL_NAME_PARAMETER_TYPE", "String");
+        SET_MODEL_ENDPOINT_PARAMETER_TYPE = properties.getProperty("SET_MODEL_ENDPOINT_PARAMETER_TYPE", "String");
+        TRANSFORMER_ENDPOINT_PARAMETER_TYPE = properties.getProperty("TRANSFORMER_ENDPOINT_PARAMETER_TYPE", "String");
+        URL_PARAMETER_TYPE = properties.getProperty("URL_PARAMETER_TYPE", "String");
+        QUESTION_PARAMETER_TYPE = properties.getProperty("QUESTION_PARAMETER_TYPE", "String");
+        DEFAULT_FALLBACK_CORPUS_FILE_PARAMETER_TYPE = properties.getProperty("DEFAULT_FALLBACK_CORPUS_FILE_PARAMETER_TYPE", "String");
+        DEFAULT_FALLBACK_CORPUS_PARAMETER_TYPE = properties.getProperty("DEFAULT_FALLBACK_CORPUS_PARAMETER_TYPE", "String");
 
-        QA_MODEL_NAME_PARAMETER_NAME = properties.getProperty("QA_MODEL_NAME_PARAMETER_NAME");
-        SET_MODEL_ENDPOINT_PARAMETER_NAME = properties.getProperty("SET_MODEL_ENDPOINT_PARAMETER_NAME");
-        TRANSFORMER_ENDPOINT_PARAMETER_NAME = properties.getProperty("TRANSFORMER_ENDPOINT_PARAMETER_NAME");
-        URL_PARAMETER_NAME = properties.getProperty("URL_PARAMETER_NAME");
-        QUESTION_PARAMETER_NAME = properties.getProperty("QUESTION_PARAMETER_NAME");
-        DEFAULT_FALLBACK_CORPUS_FILE_PARAMETER_NAME = properties.getProperty("DEFAULT_FALLBACK_CORPUS_FILE_PARAMETER_NAME");
-        DEFAULT_FALLBACK_CORPUS_PARAMETER_NAME = properties.getProperty("DEFAULT_FALLBACK_CORPUS_PARAMETER_NAME");
+        QA_MODEL_NAME_PARAMETER_NAME = properties.getProperty("QA_MODEL_NAME_PARAMETER_NAME", "qaModelName");
+        SET_MODEL_ENDPOINT_PARAMETER_NAME = properties.getProperty("SET_MODEL_ENDPOINT_PARAMETER_NAME", "setModelEndpoint");
+        TRANSFORMER_ENDPOINT_PARAMETER_NAME = properties.getProperty("TRANSFORMER_ENDPOINT_PARAMETER_NAME", "transformerEndpoint");
+        URL_PARAMETER_NAME = properties.getProperty("URL_PARAMETER_NAME", "qaModelServerUrl");
+        QUESTION_PARAMETER_NAME = properties.getProperty("QUESTION_PARAMETER_NAME", "question");
+        DEFAULT_FALLBACK_CORPUS_FILE_PARAMETER_NAME = properties.getProperty("DEFAULT_FALLBACK_CORPUS_FILE_PARAMETER_NAME", "DEFAULT_FALLBACK_CORPUS_FILE");
+        DEFAULT_FALLBACK_CORPUS_PARAMETER_NAME = properties.getProperty("DEFAULT_FALLBACK_CORPUS_PARAMETER_NAME", "defaultFallbackCorpus");
 
         QA_MODEL_NAME_PARAMETER_VALUE = properties.getProperty("QA_MODEL_NAME_PARAMETER_VALUE");
         TRANSFORMER_ENDPOINT_PARAMETER_VALUE = properties.getProperty("TRANSFORMER_ENDPOINT_PARAMETER_VALUE") + "-" + QA_TYPE;
         SET_MODEL_ENDPOINT_PARAMETER_VALUE = properties.getProperty("SET_MODEL_ENDPOINT_PARAMETER_VALUE") + "-" + QA_TYPE;
-        URL_PARAMETER_VALUE = properties.getProperty("URL_PARAMETER_VALUE");
+        URL_PARAMETER_VALUE = properties.getProperty("URL_PARAMETER_VALUE", "http://127.0.0.1:5000/");
 
-        DEFAULT_FALLBACK_CORPUS_FILE_PARAMETER_VALUE = properties.getProperty("DEFAULT_FALLBACK_CORPUS_FILE_PARAMETER_VALUE");
+        DEFAULT_FALLBACK_CORPUS_FILE_PARAMETER_VALUE = properties.getProperty(
+                "DEFAULT_FALLBACK_CORPUS_FILE_PARAMETER_VALUE", "corpus.csv");
 
-        DEFAULT_FALLBACK_VARIABLE_NAME = properties.getProperty("DEFAULT_FALLBACK_VARIABLE_NAME");
+        DEFAULT_FALLBACK_VARIABLE_NAME = properties.getProperty("DEFAULT_FALLBACK_VARIABLE_NAME", "defaultFallback");
 
-        CHATBOT_NAME = properties.getProperty("CHATBOT_NAME");
+        CHATBOT_NAME = properties.getProperty("CHATBOT_NAME", "GreetingsBot");
         CHATBOT_FILE_PATH = properties.getProperty("CHATBOT_FILE_PATH") + CHATBOT_NAME + ".java";
 
         SET_MODEL_METHOD =
-                "public static void setModel() {\n"
+                "public static boolean setModel() {\n"
                         + "        JSONObject request = new JSONObject();\n"
                         + "        request.put(\"modelName\", " + QA_MODEL_NAME_PARAMETER_NAME + ");\n"
                         + "        try {\n"
@@ -120,7 +125,10 @@ public class Visitor {
                         + "            // TODO: check status ok\n"
                         + "        } catch (Exception e) {\n"
                         + "            Log.error(e, \"An error occurred while setting the model, see the attached exception\");\n"
+                        + "            defaultFallbackCorpus = null;\n"
+                        + "            return false;\n"
                         + "        }\n"
+                        + "        return true;\n"
                         + "    }";
 
         PROCESS_QA_TEXT_METHOD =
@@ -162,30 +170,44 @@ public class Visitor {
                         + "            List<Object> answer_cells = modelResponse.getJSONArray(\"answer\").toList();\n"
                         + "            String aggregation = modelResponse.getString(\"aggregation\");\n"
                         + "            String answer;\n"
-                        + "switch(aggregation) {\n"
+                        + "            switch(aggregation) {\n"
                         + "                case \"NONE\":\n"
                         + "                    answer = (String) answer_cells.get(0);\n"
-                        + "                    break;"
+                        + "                    break;\n"
                         + "                case \"SUM\":\n"
                         + "                    float sum = 0.f;\n"
-                        + "                    for (Object cell : answer_cells) {\n"
-                        + "                        sum += Float.parseFloat(cell.toString());\n"
+                        + "                    try {\n"
+                        + "                        for (Object cell : answer_cells) {\n"
+                        + "                            sum += Float.parseFloat(cell.toString());\n"
+                        + "                        }\n"
+                        + "                        answer = String.valueOf(sum);\n"
                         + "                    }\n"
-                        + "                    answer = String.valueOf(sum);\n"
+                        + "                    catch (NumberFormatException nfe) {\n"
+                        + "                        Log.error(nfe, \"An error occurred while computing the answer doing a SUM of terms, see the \"\n"
+                        + "                                + \"attached exception\");\n"
+                        + "                        answer = \"SUM: \" + answer_cells;\n"
+                        + "                    }\n"
                         + "                    break;\n"
                         + "                case \"AVERAGE\":\n"
                         + "                    float average_sum = 0.f;\n"
-                        + "                    for (Object cell : answer_cells) {\n"
-                        + "                        average_sum += Float.parseFloat(cell.toString());\n"
+                        + "                    try {\n"
+                        + "                        for (Object cell : answer_cells) {\n"
+                        + "                            average_sum += Float.parseFloat(cell.toString());\n"
+                        + "                        }\n"
+                        + "                        answer = String.valueOf(average_sum);\n"
                         + "                    }\n"
-                        + "                    answer = String.valueOf(average_sum / answer_cells.size());\n"
+                        + "                    catch (NumberFormatException nfe) {\n"
+                        + "                        Log.error(nfe, \"An error occurred while computing the answer doing an AVERAGE of terms, see \"\n"
+                        + "                                + \"the attached exception\");\n"
+                        + "                        answer = \"AVERAGE: \" + answer_cells;\n"
+                        + "                    }\n"
                         + "                    break;\n"
                         + "                case \"COUNT\":\n"
                         + "                    answer = String.valueOf(answer_cells.size());\n"
                         + "                    break;\n"
                         + "                default:\n"
                         + "                    answer = answer_cells.toString();\n"
-                        + "            }"
+                        + "            }\n"
                         + "            return answer;\n"
                         + "        } catch (Exception e) {\n"
                         + "            Log.error(e, \"An error occurred while computing the answer, see the attached exception\");\n"
@@ -200,6 +222,7 @@ public class Visitor {
                         + "            if (isNull(inputStream)) {\n"
                         + "                Log.error(\"Cannot find the file {0}, the default fallback state won't use a language model\",\n"
                         + "                        " + DEFAULT_FALLBACK_CORPUS_FILE_PARAMETER_NAME + ");\n"
+                        + "                        defaultFallbackCorpus = null;\n"
                         + "            } else {\n"
                         + "                " + DEFAULT_FALLBACK_CORPUS_PARAMETER_NAME + " = IOUtils.toString(inputStream, StandardCharsets.UTF_8);\n"
                         + "            }\n"
@@ -213,14 +236,18 @@ public class Visitor {
 
         DEFAULT_FALLBACK_BODY =
                 "fallbackState().body(context -> {\n"
-                        + "            " + QUESTION_PARAMETER_TYPE + " " + QUESTION_PARAMETER_NAME + " = context.getIntent().getMatchedInput();\n"
-                        + "            String qaAnswer = processQA(" + QUESTION_PARAMETER_NAME + ");\n"
-                        + "            if (isNull(qaAnswer)) {\n"
+                        + "            if (isNull(defaultFallbackCorpus)) {\n"
                         + "                reactPlatform.reply(context, \"Sorry, I didn't, get it\");\n"
                         + "            } else {\n"
-                        + "                reactPlatform.reply(context, \"I found this answer in \" + DEFAULT_FALLBACK_CORPUS_FILE + \":\");\n"
-                        + "                reactPlatform.reply(context, qaAnswer);\n"
-                        + "            }\n"
+                        + "                " + QUESTION_PARAMETER_TYPE + " " + QUESTION_PARAMETER_NAME + " = context.getIntent().getMatchedInput();\n"
+                        + "                String qaAnswer = processQA(question);\n"
+                        + "                if (isNull(qaAnswer)) {\n"
+                        + "                    reactPlatform.reply(context, \"Sorry, I didn't, get it\");\n"
+                        + "                } else {\n"
+                        + "                    reactPlatform.reply(context, \"I found this answer in \" + DEFAULT_FALLBACK_CORPUS_FILE + \":\");\n"
+                        + "                    reactPlatform.reply(context, qaAnswer);\n"
+                        + "                }\n"
+                        + "            }"
                         + "        })";
     }
 
@@ -255,10 +282,9 @@ public class Visitor {
         @Override
         public ClassOrInterfaceDeclaration visit(ClassOrInterfaceDeclaration cid, Void arg) {
             super.visit(cid, arg);
-            // check is main bot class ???
-            MethodDeclaration setModelMethodDeclaration = StaticJavaParser.parseMethodDeclaration(SET_MODEL_METHOD);
-            StringLiteralExpr adressExpression = new StringLiteralExpr(URL_PARAMETER_VALUE);
-            cid.addFieldWithInitializer(URL_PARAMETER_TYPE, URL_PARAMETER_NAME, adressExpression,
+            // TODO: check is main bot class ???
+            StringLiteralExpr urlExpression = new StringLiteralExpr(URL_PARAMETER_VALUE);
+            cid.addFieldWithInitializer(URL_PARAMETER_TYPE, URL_PARAMETER_NAME, urlExpression,
                     Modifier.Keyword.PRIVATE, Modifier.Keyword.STATIC);
             StringLiteralExpr setModelEndpointExpression = new StringLiteralExpr(SET_MODEL_ENDPOINT_PARAMETER_VALUE);
             cid.addFieldWithInitializer(SET_MODEL_ENDPOINT_PARAMETER_TYPE, SET_MODEL_ENDPOINT_PARAMETER_NAME, setModelEndpointExpression,
@@ -287,7 +313,7 @@ public class Visitor {
         @Override
         public ClassOrInterfaceDeclaration visit(ClassOrInterfaceDeclaration cid, Void arg) {
             super.visit(cid, arg);
-            // check is main bot class ???
+            // TODO: check is main bot class ???
             MethodDeclaration setModelMethodDeclaration = StaticJavaParser.parseMethodDeclaration(SET_MODEL_METHOD);
             cid
                     .addMethod(setModelMethodDeclaration.getNameAsString(), Modifier.Keyword.PRIVATE,
@@ -328,7 +354,6 @@ public class Visitor {
             super.visit(md, arg);
             if (md.getNameAsString().equals("main") && md.getBody().isPresent()) {
                 NodeList<Statement> statements = md.getBody().get().getStatements();
-
                 MethodDeclaration setDefaultFallbackCorpusMethodDeclaration = StaticJavaParser.parseMethodDeclaration(SET_DEFAULT_FALLBACK_CORPUS_METHOD);
                 MethodCallExpr setDefaultFallbackCorpusMethodCallExpr = new MethodCallExpr();
                 setDefaultFallbackCorpusMethodCallExpr.setName(setDefaultFallbackCorpusMethodDeclaration.getNameAsString());
@@ -339,7 +364,7 @@ public class Visitor {
                 }
                 Statement setDefaultFallbackCorpusMethodCallStatement =
                         new ExpressionStmt(setDefaultFallbackCorpusMethodCallExpr);
-                statements.addFirst(setDefaultFallbackCorpusMethodCallStatement);
+                //statements.addFirst(setDefaultFallbackCorpusMethodCallStatement); /////////////////////////////
 
                 MethodDeclaration setModelMethodDeclaration = StaticJavaParser.parseMethodDeclaration(SET_MODEL_METHOD);
                 MethodCallExpr setModelMethodCallExpr = new MethodCallExpr();
@@ -349,11 +374,34 @@ public class Visitor {
                     setModelMethodCallExpr.addArgument(parameter.getNameAsString());
                 }
                 Statement setModelMethodCallStatement = new ExpressionStmt(setModelMethodCallExpr);
-                statements.addFirst(setModelMethodCallStatement);
+                //statements.addFirst(setModelMethodCallStatement); ///////////////////////////////////////////////
+
+
+
+                Statement ifStatement = new IfStmt(setModelMethodCallExpr,
+                        setDefaultFallbackCorpusMethodCallStatement, null);
+                statements.addFirst(ifStatement);
             }
             return md;
         }
     }
+
+    private static class moveMainToBottom extends ModifierVisitor<Void> {
+        @Override
+        public ClassOrInterfaceDeclaration visit(ClassOrInterfaceDeclaration cid, Void arg) {
+            super.visit(cid, arg);
+            // TODO: check is main bot class ???
+            MethodDeclaration mainMethod = cid.getMethodsByName("main").get(0);
+            cid.remove(mainMethod);
+            cid
+                    .addMethod(mainMethod.getNameAsString(), Modifier.Keyword.PUBLIC, Modifier.Keyword.STATIC)
+                    .setType(mainMethod.getType())
+                    .setParameters(mainMethod.getParameters())
+                    .setBody(mainMethod.getBody().get());
+            return cid;
+        }
+    }
+
 
     public static void main(String[] args) throws Exception {
 
@@ -376,15 +424,18 @@ public class Visitor {
 
         addImports(cu);
 
+
         ModifierVisitor<?> defaultFallbackModifier = new defaultFallbackModifier();
         ModifierVisitor<?> fieldInserter = new fieldInserter();
         ModifierVisitor<?> methodInserter = new methodInserter();
-        ModifierVisitor<?> callInserter = new methodCallInserter();
+        ModifierVisitor<?> methodCallInserter = new methodCallInserter();
+        ModifierVisitor<?> moveMainToBottom = new moveMainToBottom();
 
         defaultFallbackModifier.visit(cu, null);
         fieldInserter.visit(cu, null);
         methodInserter.visit(cu, null);
-        callInserter.visit(cu, null);
+        methodCallInserter.visit(cu, null);
+        moveMainToBottom.visit(cu, null);
 
         try {
             FileWriter myWriter = new FileWriter("Enhanced" + CHATBOT_FILE_PATH);
